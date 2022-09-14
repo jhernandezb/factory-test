@@ -33,8 +33,12 @@ pub fn instantiate(
         }
         .into();
         let res: ContractInfoResponse = deps.querier.query(&req)?;
-        if res.code_id == msg.code_id {
-            return Err(StdError::generic_err("contract is not from allowed code id").into());
+        if res.code_id != msg.code_id {
+            let err_msg = format!(
+                "contract is not from allowed code id {}-{}",
+                res.code_id, msg.code_id
+            );
+            return Err(StdError::generic_err(err_msg).into());
         }
         return Ok(Response::default());
     }
@@ -52,7 +56,7 @@ pub fn instantiate(
         .into(),
         id: REPLY_ID,
         gas_limit: None,
-        reply_on: ReplyOn::Always,
+        reply_on: ReplyOn::Success,
     };
     Ok(Response::new()
         .add_attribute("action", "instantiate")
