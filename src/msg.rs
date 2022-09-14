@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "snake_case")]
 pub struct InstantiateMsg {
     pub factory: bool,
+    pub controller: bool,
     pub code_id: u64,
 }
 

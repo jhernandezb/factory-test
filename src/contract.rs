@@ -25,42 +25,68 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    // if not factory  check the caller is a contract from the code_id
-    // and return
-    if !msg.factory {
-        let req = WasmQuery::ContractInfo {
-            contract_addr: info.sender.into(),
-        }
-        .into();
-        let res: ContractInfoResponse = deps.querier.query(&req)?;
-        if res.code_id != msg.code_id {
-            let err_msg = format!(
-                "contract is not from allowed code id {}-{}",
-                res.code_id, msg.code_id
-            );
-            return Err(StdError::generic_err(err_msg).into());
-        }
-        return Ok(Response::default());
-    }
-    let submsg = SubMsg {
-        msg: WasmMsg::Instantiate {
-            code_id: msg.code_id,
-            msg: to_binary(&InstantiateMsg {
-                factory: false,
+    // factory instantiates controller
+    if msg.factory {
+        let submsg = SubMsg {
+            msg: WasmMsg::Instantiate {
                 code_id: msg.code_id,
-            })?,
-            funds: info.funds,
-            admin: Some(info.sender.to_string()),
-            label: "contract".to_string(),
-        }
-        .into(),
-        id: REPLY_ID,
-        gas_limit: None,
-        reply_on: ReplyOn::Success,
-    };
-    Ok(Response::new()
-        .add_attribute("action", "instantiate")
-        .add_submessage(submsg))
+                msg: to_binary(&InstantiateMsg {
+                    factory: false,
+                    code_id: msg.code_id,
+                    controller: true,
+                })?,
+                funds: info.funds,
+                admin: Some(info.sender.to_string()),
+                label: "contract".to_string(),
+            }
+            .into(),
+            id: REPLY_ID,
+            gas_limit: None,
+            reply_on: ReplyOn::Success,
+        };
+        return Ok(Response::new()
+            .add_attribute("action", "instantiate")
+            .add_submessage(submsg));
+    }
+
+    if msg.controller {
+        let submsg = SubMsg {
+            msg: WasmMsg::Instantiate {
+                code_id: msg.code_id,
+                msg: to_binary(&InstantiateMsg {
+                    factory: false,
+                    code_id: msg.code_id,
+                    controller: false,
+                })?,
+                funds: info.funds,
+                admin: Some(info.sender.to_string()),
+                label: "contract".to_string(),
+            }
+            .into(),
+            id: REPLY_ID,
+            gas_limit: None,
+            reply_on: ReplyOn::Success,
+        };
+        return Ok(Response::new()
+            .add_attribute("action", "instantiate")
+            .add_submessage(submsg));
+    }
+    // if not factory or controller check the caller is a contract from the code_id
+    // and return
+
+    let req = WasmQuery::ContractInfo {
+        contract_addr: info.sender.into(),
+    }
+    .into();
+    let res: ContractInfoResponse = deps.querier.query(&req)?;
+    if res.code_id != msg.code_id {
+        let err_msg = format!(
+            "contract is not from allowed code id {}-{}",
+            res.code_id, msg.code_id
+        );
+        return Err(StdError::generic_err(err_msg).into());
+    }
+    return Ok(Response::default());
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
