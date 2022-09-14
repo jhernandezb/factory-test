@@ -1,9 +1,10 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, ReplyOn, Response, StdError,
-    StdResult, SubMsg, WasmMsg,
+    to_binary, Binary, ContractInfoResponse, Deps, DepsMut, Empty, Env, MessageInfo, Querier,
+    QuerierWrapper, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, WasmMsg, WasmQuery,
 };
+
 use cw_utils::parse_reply_instantiate_data;
 
 use cw2::set_contract_version;
@@ -24,8 +25,17 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    // if not factory just return
+    // if not factory  check the caller is a contract from the code_id
+    // and return
     if !msg.factory {
+        let req = WasmQuery::ContractInfo {
+            contract_addr: info.sender.into(),
+        }
+        .into();
+        let res: ContractInfoResponse = deps.querier.query(&req)?;
+        if res.code_id == msg.code_id {
+            return Err(StdError::generic_err("contract is not from allowed code id").into());
+        }
         return Ok(Response::default());
     }
     let submsg = SubMsg {
@@ -80,5 +90,13 @@ pub fn reply(_deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, Contract
     }
 }
 
-#[cfg(test)]
-mod tests {}
+pub fn query_contract_info<Q: Querier, T: Into<String>>(
+    querier: &Q,
+    contract_addr: T,
+) -> StdResult<ContractInfoResponse> {
+    let req = WasmQuery::ContractInfo {
+        contract_addr: contract_addr.into(),
+    }
+    .into();
+    QuerierWrapper::<Empty>::new(querier).query(&req)
+}
